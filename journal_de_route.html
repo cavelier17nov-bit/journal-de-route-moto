@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Journal de Route — Météo Moto</title>
+    <!-- Chargement de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chargement des polices : Newsreader (éditorial), Inter (interface), JetBrains Mono (données chiffrées) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Newsreader"', 'Georgia', 'serif'],
+                        sans: ['"Inter"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        night: {
+                            bg: '#0B0B0D',
+                            card: '#131317',
+                            elevated: '#1A1A20',
+                            border: '#232329',
+                            text: '#F4F4F6',
+                            muted: '#9A9AA6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Esthétique liseuse nocturne raffinée — zéro flash blanc */
+        body {
+            background-color: #0B0B0D;
+            color: #F4F4F6;
+            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        /* Transitions douces et fluides d'apparition des panneaux */
+        @keyframes softFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .panel-transition {
+            animation: softFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Rotation fluide uniquement sur l'icône d'actualisation */
+        @keyframes gentleSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .is-spinning {
+            animation: gentleSpin 0.7s linear infinite;
+        }
+
+        /* Barre de défilement discrète */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0B0D;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #232329;
+            border-radius: 9999px;
+        }
+
+        /* ===== Optimisation mobile ===== */
+        html { -webkit-text-size-adjust: 100%; }
+        button, a, input { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        input { font-size: 16px !important; } /* évite le zoom automatique iOS */
+        button { min-height: 44px; }
+        body { padding-top: env(safe-area-inset-top); }
+        .app-wrap { position: relative; z-index: 1; padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important; }
+        #bottom-nav {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+            background: rgba(19,19,23,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border-top: 1px solid #232329;
+        }
+        #bottom-nav button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; border-radius: 12px; font-size: 11px; font-weight: 500; color: #9A9AA6; }
+        #bottom-nav button.tab-on { color: #F4F4F6; background: #1F1F26; }
+        #bottom-nav svg { width: 22px; height: 22px; }
+        #day-strip { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; }
+        #day-strip .cell { height: 34px; border-radius: 6px; }
+        @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+        /* ===== Ciel animé (heure + météo) ===== */
+        #sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+               -webkit-mask-image: linear-gradient(#000 0%, #000 35%, transparent 75%); mask-image: linear-gradient(#000 0%, #000 35%, transparent 75%); }
+        #sky .bg { position: absolute; inset: 0; opacity: .6; transition: background 2s; }
+        #sky .orb { position: absolute; width: 64px; height: 64px; border-radius: 50%; transition: left 2s, top 2s; }
+        #sky .sun { background: radial-gradient(circle, #fff3c4 0 40%, #ffd166 70%); box-shadow: 0 0 60px 20px rgba(255,209,102,.45); animation: breathe 6s ease-in-out infinite; }
+        #sky .moon { width: 48px; height: 48px; background: #e8ecf5; box-shadow: 0 0 40px 10px rgba(200,210,255,.3), inset -12px -4px 0 0 #b9c1d6; animation: breathe 8s ease-in-out infinite; }
+        #sky .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: twinkle 3s ease-in-out infinite; }
+        #sky .cloud { position: absolute; height: 34px; border-radius: 40px; background: rgba(210,218,235,.35); filter: blur(6px); animation: drift linear infinite; }
+        #sky .drop { position: absolute; top: -30px; width: 1.5px; height: 18px; background: linear-gradient(transparent, rgba(150,190,255,.7)); animation: fall linear infinite; }
+        #sky .flake { position: absolute; top: -10px; width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.85); animation: snow linear infinite; }
+        #sky .fog { position: absolute; left: -20%; width: 140%; height: 90px; background: rgba(200,205,215,.18); filter: blur(22px); animation: fogmove 14s ease-in-out infinite alternate; }
+        #sky .flash { position: absolute; inset: 0; background: #dfe6ff; opacity: 0; animation: flash 7s infinite; }
+        @keyframes breathe { 50% { transform: scale(1.06); } }
+        @keyframes twinkle { 50% { opacity: .2; } }
+        @keyframes drift { from { transform: translateX(-30vw); } to { transform: translateX(130vw); } }
+        @keyframes fall { to { transform: translateY(75vh) translateX(-14px); } }
+        @keyframes snow { 50% { margin-left: 14px; } to { transform: translateY(75vh); } }
+        @keyframes fogmove { to { transform: translateX(8%); } }
+        @keyframes flash { 0%, 92%, 96%, 100% { opacity: 0; } 93% { opacity: .35; } 94% { opacity: .05; } 95% { opacity: .3; } }
+        @keyframes cellIn { from { opacity: 0; transform: scaleY(.3); } }
+        #day-strip .cell { animation: cellIn .45s cubic-bezier(.16,1,.3,1) backwards; transform-origin: bottom; }
+        #now-badge-dot { animation: pulseDot 2.2s ease-in-out infinite; }
+        @keyframes pulseDot { 50% { box-shadow: 0 0 0 5px rgba(52,211,153,0); } 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.5); } }
+
+        /* ===== Transition entre onglets ===== */
+        @keyframes tabIn { from { opacity: 0; transform: translateX(var(--dx, 24px)); } to { opacity: 1; transform: none; } }
+        @keyframes childIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes iconPop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+        .tab-enter { animation: tabIn .36s cubic-bezier(.16,1,.3,1) both; }
+        .tab-enter > * { animation: childIn .45s cubic-bezier(.16,1,.3,1) backwards; }
+        .tab-enter > *:nth-child(2) { animation-delay: 60ms; }
+        .tab-enter > *:nth-child(3) { animation-delay: 120ms; }
+        .tab-enter > *:nth-child(4) { animation-delay: 180ms; }
+        .tab-enter > *:nth-child(n+5) { animation-delay: 240ms; }
+        #bottom-nav button.tab-on svg { animation: iconPop .42s cubic-bezier(.34,1.56,.64,1); }
+
+        /* ===== Style Apple / iOS (couleurs système, SF Pro, verre dépoli) ===== */
+        :root { --ios-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Inter, system-ui, sans-serif; }
+        body, body *:not(svg):not(path) { font-family: var(--ios-font) !important; }
+        body.min-h-screen { background: #000 !important; }
+        .font-mono, .font-serif, #live-clock { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+        h1 { font-weight: 700 !important; font-size: 34px !important; letter-spacing: -0.03em !important; line-height: 1.1 !important; }
+        /* Cartes groupées */
+        .bg-\[\#131317\] { background: #1C1C1E !important; }
+        .bg-\[\#1A1A20\], .bg-\[\#1A1A20\]\/50 { background: #2C2C2E !important; }
+        .border-\[\#232329\] { border-color: rgba(84,84,88,.4) !important; }
+        .rounded-\[12px\] { border-radius: 20px !important; }
+        .rounded-\[9px\], .rounded-\[8px\] { border-radius: 9px !important; }
+        /* Contrôles segmentés */
+        .bg-\[\#0B0B0D\]:not(body) { background: rgba(118,118,128,.24) !important; border-color: transparent !important; }
+        .bg-\[\#1F1F26\] { background: #636366 !important; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+        /* Textes */
+        .text-\[\#9A9AA6\] { color: #8E8E93 !important; }
+        .text-\[\#F4F4F6\] { color: #fff !important; }
+        /* Couleurs système */
+        .text-emerald-300, .bg-emerald-400, .bg-emerald-400\/80 { color: #30D158 !important; }
+        .bg-emerald-400, .bg-emerald-400\/80 { background: #30D158 !important; }
+        .bg-emerald-500\/10 { background: rgba(48,209,88,.16) !important; }
+        .text-amber-300 { color: #FF9F0A !important; } .bg-amber-400 { background: #FF9F0A !important; }
+        .bg-amber-500\/10 { background: rgba(255,159,10,.16) !important; }
+        .text-rose-300 { color: #FF453A !important; } .bg-rose-400 { background: #FF453A !important; }
+        .bg-rose-500\/10 { background: rgba(255,69,58,.16) !important; }
+        .border-emerald-500\/25, .border-amber-500\/25, .border-rose-500\/25 { border-color: transparent !important; }
+        /* Barre d'onglets façon iOS */
+        #bottom-nav { background: rgba(28,28,30,.72); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); border-top: .5px solid rgba(84,84,88,.6); padding-top: 4px; }
+        #bottom-nav button { font-size: 10px; font-weight: 500; letter-spacing: .01em; color: #8E8E93; background: transparent !important; min-height: 49px; }
+        #bottom-nav button.tab-on { color: #0A84FF; background: transparent !important; }
+        /* Retour tactile */
+        button { transition: transform .15s ease, opacity .15s ease, background-color .2s; }
+        button:active { transform: scale(.96); opacity: .8; }
+        input { background: rgba(118,118,128,.24) !important; border-radius: 12px !important; border-color: transparent !important; }
+
+        #bottom-nav { grid-template-columns: repeat(5, 1fr) !important; padding-left: 4px; padding-right: 4px; }
+        #map { position: relative; z-index: 0; isolation: isolate; background: #000; }
+        .leaflet-control-attribution { background: rgba(0,0,0,.5) !important; color: #8E8E93 !important; font-size: 9px !important; }
+        .leaflet-control-attribution a { color: #8E8E93 !important; }
+        .map-btn { background: rgba(28,28,30,.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: #fff; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 12px; min-height: 36px; }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</head>
+<body class="min-h-screen bg-[#0B0B0D] text-[#F4F4F6] selection:bg-[#F4F4F6]/15 selection:text-[#F4F4F6]">
+
+    <div id="sky" aria-hidden="true"></div>
+    <!-- Conteneur principal centré -->
+    <div class="app-wrap max-w-xl mx-auto px-4 sm:px-6 py-5 sm:py-8 min-h-screen flex flex-col justify-between">
+
+        <div>
+            <!-- EN-TÊTE ÉPURÉ -->
+            <header class="flex items-start justify-between gap-4 pb-5 mb-6 border-b border-[#232329]">
+                <div>
+                    <div class="flex items-center gap-2 text-xs font-mono text-[#9A9AA6] mb-1.5">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400/80"></span>
+                        <span id="header-city-label" class="uppercase tracking-wider text-[#F4F4F6]/90">Audincourt</span>
+                        <span class="text-[#232329]">•</span>
+                        <span id="live-clock">--:--</span>
+                    </div>
+                    <h1 class="font-serif text-3xl sm:text-4xl font-medium tracking-tight text-[#F4F4F6]">
+                        Journal de Route
+                    </h1>
+                </div>
+
+                <!-- Bouton Actualiser discret sans flash -->
+                <button id="refresh-btn" onclick="refreshWeatherSmooth()" title="Actualiser les relevés" class="mt-1 inline-flex items-center gap-2 px-3 py-2 rounded-[12px] bg-[#131317] border border-[#232329] text-xs font-medium text-[#9A9AA6] hover:text-[#F4F4F6] hover:border-[#34343D] transition-colors cursor-pointer">
+                    <svg id="refresh-icon" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                        <path d="M16 16h5v5"/>
+                    </svg>
+                    <span class="hidden sm:inline">Actualiser</span>
+                </button>
+            </header>
+
+            <!-- NAVIGATION PAR 3 ONGLETS NOMMÉS -->
+            <nav id="bottom-nav" aria-label="Navigation principale">
+                <button id="nav-tab-now" onclick="switchMainTab('now')" class="tab-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Maintenant</button>
+                <button id="nav-tab-hours" onclick="switchMainTab('hours')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heures</button>
+                <button id="nav-tab-map" onclick="switchMainTab('map')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.3 18a10 10 0 1 1 17.4 0"/></svg>Tableau</button>
+                <button id="nav-tab-stats" onclick="switchMainTab('stats')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>Stats</button>
+                <button id="nav-tab-place" onclick="switchMainTab('place')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Lieu</button>
+            </nav>
+
+            <!-- Notification discrète (remplace tout alert()) -->
+            <div id="status-banner" class="hidden mb-5 px-4 py-3 rounded-[12px] bg-[#131317] border border-[#232329] text-xs text-[#F4F4F6] flex items-center justify-between panel-transition">
+                <span id="status-banner-text" class="text-[#9A9AA6]"></span>
+                <button onclick="hideBanner()" class="ml-3 text-[#F4F4F6] hover:underline font-medium cursor-pointer">Fermer</button>
+            </div>
+
+            <!-- =========================================================
+                 ONGLET 1 : MAINTENANT
+                 ========================================================= -->
+            <main id="panel-now" class="space-y-4 panel-transition">
+                
+                <!-- Carte principale Verdict -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-5 sm:p-6">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <span class="text-xs font-mono uppercase tracking-wider text-[#9A9AA6]">Diagnostic moto</span>
+                        <span id="now-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#1A1A20] border border-[#232329] text-[#9A9AA6]">
+                            <span id="now-badge-dot" class="w-1.5 h-1.5 rounded-full bg-[#9A9AA6]"></span>
+                            <span id="now-badge-label">Analyse</span>
+                        </span>
+                    </div>
+
+                    <h2 id="now-verdict" class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-[#F4F4F6] mb-2.5">
+                        Chargement...
+                    </h2>
+
+                    <p id="now-reason" class="text-sm sm:text-base leading-relaxed text-[#9A9AA6]">
+                        Récupération des conditions atmosphériques et d'adhérence en cours.
+                    </p>
+                </div>
+
+                <!-- Grille des 3 cartes métriques -->
+                <div class="grid grid-cols-3 gap-3">
+                    <!-- Température -->
+                    <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4">
+                        <span class="block text-xs text-[#9A9AA6] mb-1.5">Température</span>
+                        <div id="now-temp" class="font-mono text-2xl sm:text-[26px] font-semibold text-[#F4F4F6] tracking-tight">--°</div>
+                        <span id="now-feels" class="block font-mono text-[11px] text-[#9A9AA6] mt-1">Ressenti --°</span>
+                    </div>
+
+                    <!-- Vent -->
+                    <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4">
+                        <span class="block text-xs text-[#9A9AA6] mb-1.5">Vent</span>
+                        <div class="font-mono text-2xl sm:text-[26px] font-semibold text-[#F4F4F6] tracking-tight">
+                            <span id="now-wind">--</span><span class="text-xs font-normal text-[#9A9AA6] ml-0.5">km/h</span>
+                        </div>
+                        <span id="now-gusts" class="block font-mono text-[11px] text-[#9A9AA6] mt-1">Raf. -- km/h</span>
+                    </div>
+
+                    <!-- Précipitations -->
+                    <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4">
+                        <span class="block text-xs text-[#9A9AA6] mb-1.5">Pluie</span>
+                        <div id="now-rain-prob" class="font-mono text-2xl sm:text-[26px] font-semibold text-[#F4F4F6] tracking-tight">--%</div>
+                        <span id="now-rain-mm" class="block font-mono text-[11px] text-[#9A9AA6] mt-1">0.0 mm</span>
+                    </div>
+                </div>
+
+                <!-- Encart Équipement conseillé -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4 sm:p-5 flex items-start gap-3.5">
+                    <div class="p-2 rounded-[9px] bg-[#1A1A20] border border-[#232329] text-[#F4F4F6] shrink-0 mt-0.5">
+                        <!-- Icône casque/bouclier minimaliste SVG -->
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-medium text-[#9A9AA6] mb-1">Équipement conseillé</span>
+                        <p id="now-gear" class="text-sm text-[#F4F4F6] leading-relaxed">
+                            --
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Frise de la journée : un coup d'œil -->
+                <button onclick="switchMainTab('hours')" class="w-full text-left rounded-[12px] bg-[#131317] border border-[#232329] p-4" aria-label="Voir le détail heure par heure">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-medium text-[#9A9AA6]">Aujourd'hui, 7h → 22h</span>
+                        <span class="text-[11px] text-[#9A9AA6]">Détail →</span>
+                    </div>
+                    <div id="day-strip"></div>
+                    <div class="flex justify-between mt-2 text-[10px] font-mono text-[#9A9AA6]"><span>7h</span><span>12h</span><span>17h</span><span>21h</span></div>
+                </button>
+
+                <!-- Aperçu rapide de la prochaine meilleure fenêtre aujourd'hui -->
+                <button onclick="switchMainTab('hours')" class="w-full text-left rounded-[12px] bg-[#131317] border border-[#232329] hover:border-[#34343D] p-4 sm:p-5 flex items-center justify-between gap-4 transition-colors cursor-pointer group">
+                    <div>
+                        <span class="block text-xs text-[#9A9AA6] mb-1">Meilleur créneau aujourd'hui</span>
+                        <span id="now-next-window" class="font-mono text-sm sm:text-base font-medium text-[#F4F4F6]">Calcul en cours...</span>
+                    </div>
+                    <span class="text-xs font-medium text-[#9A9AA6] group-hover:text-[#F4F4F6] transition-colors shrink-0">
+                        Voir les heures →
+                    </span>
+                </button>
+            </main>
+
+            <!-- =========================================================
+                 ONGLET 2 : MEILLEURES HEURES
+                 ========================================================= -->
+            <section id="panel-hours" class="hidden space-y-5 panel-transition">
+                
+                <!-- Deux cartes récapitulatives côte à côte -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4">
+                        <span class="block text-xs text-[#9A9AA6] mb-1.5">Meilleur créneau aujourd'hui</span>
+                        <div id="best-today-range" class="font-mono text-base sm:text-lg font-semibold text-[#F4F4F6]">--</div>
+                        <div id="best-today-meta" class="font-mono text-xs text-[#9A9AA6] mt-1">--</div>
+                    </div>
+
+                    <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-4">
+                        <span class="block text-xs text-[#9A9AA6] mb-1.5">Meilleur créneau demain</span>
+                        <div id="best-tomorrow-range" class="font-mono text-base sm:text-lg font-semibold text-[#F4F4F6]">--</div>
+                        <div id="best-tomorrow-meta" class="font-mono text-xs text-[#9A9AA6] mt-1">--</div>
+                    </div>
+                </div>
+
+                <!-- Tableau heure par heure -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] overflow-hidden">
+                    <!-- Barre de contrôle jour -->
+                    <div class="p-3 border-b border-[#232329]">
+                        <div class="grid grid-cols-2 p-1 rounded-[12px] bg-[#0B0B0D] border border-[#232329] text-sm">
+                            <button id="subtab-today" onclick="switchHourlyDay('today')" class="py-2.5 rounded-[9px] bg-[#1F1F26] text-[#F4F4F6] font-medium transition-colors cursor-pointer">
+                                Aujourd'hui
+                            </button>
+                            <button id="subtab-tomorrow" onclick="switchHourlyDay('tomorrow')" class="py-2.5 rounded-[9px] text-[#9A9AA6] hover:text-[#F4F4F6] transition-colors cursor-pointer">
+                                Demain
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- En-tête des colonnes -->
+                    <div class="grid grid-cols-12 px-4 py-2.5 border-b border-[#232329] text-[11px] font-mono uppercase tracking-wider text-[#9A9AA6]">
+                        <div class="col-span-3">Heure</div>
+                        <div class="col-span-2 text-center">Ciel</div>
+                        <div class="col-span-2 text-center">Temp.</div>
+                        <div class="col-span-2 text-center">Pluie</div>
+                        <div class="col-span-3 text-right">Statut</div>
+                    </div>
+
+                    <!-- Lignes horaires -->
+                    <div id="hourly-list" class="divide-y divide-[#232329]/70">
+                        <div class="py-8 text-center text-xs text-[#9A9AA6]">Chargement des prévisions...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =========================================================
+                 ONGLET 3 : LIEU
+                 ========================================================= -->
+            <!-- ONGLET : TABLEAU DE BORD -->
+            <section id="panel-map" class="hidden space-y-4">
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-5">
+                    <div class="flex items-center justify-between text-xs text-[#9A9AA6]"><span>Tableau de bord · Vitesse</span><span id="gps-status">GPS à l'arrêt</span></div>
+                    <div class="flex items-end gap-2 mt-2"><span id="spd" class="text-7xl font-bold tracking-tight leading-none">--</span><span class="text-lg text-[#9A9AA6] pb-2">km/h</span></div>
+                    <div class="h-1.5 rounded-full mt-4 bg-white/10 overflow-hidden"><div id="spd-bar" class="h-full rounded-full" style="width:0;background:#30D158;transition:width .4s,background .4s"></div></div>
+                    <div class="grid grid-cols-3 gap-3 mt-4 text-center">
+                        <div><div id="d-dist" class="text-lg font-semibold">0.0</div><div class="text-[11px] text-[#9A9AA6]">km</div></div>
+                        <div><div id="d-time" class="text-lg font-semibold">0:00</div><div class="text-[11px] text-[#9A9AA6]">durée</div></div>
+                        <div><div id="d-max" class="text-lg font-semibold">0</div><div class="text-[11px] text-[#9A9AA6]">max km/h</div></div>
+                    </div>
+                    <button id="trk-btn" onclick="toggleTracking()" class="w-full mt-4 py-3 rounded-[14px] font-semibold text-white" style="background:#0A84FF">Démarrer le trajet</button>
+                </div>
+                <div class="relative rounded-[12px] overflow-hidden border border-[#232329]">
+                    <div id="map" style="height:360px"></div>
+                    <div class="absolute top-3 right-3 flex flex-col gap-2" style="z-index:500">
+                        <button class="map-btn" onclick="mapGoMe()">Ma position</button>
+                        <button class="map-btn" onclick="mapGoWorld()">Monde</button>
+                    </div>
+                </div>
+                <p id="explored-line" class="text-xs text-[#9A9AA6] px-1">Zones explorées : 0</p>
+            </section>
+
+            <!-- ONGLET : STATS -->
+            <section id="panel-stats" class="hidden"><div id="stats-body" class="space-y-4"></div></section>
+
+            <section id="panel-place" class="hidden space-y-5 panel-transition">
+                
+                <!-- Ville active et heure locale -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-5 flex items-center justify-between gap-4">
+                    <div>
+                        <span class="block text-xs text-[#9A9AA6] mb-1">Localisation active</span>
+                        <div id="current-place-display" class="font-serif text-2xl font-medium text-[#F4F4F6]">Audincourt, France</div>
+                        <div id="current-coords-display" class="font-mono text-xs text-[#9A9AA6] mt-1">47.48°N, 6.84°E</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-xs text-[#9A9AA6] mb-1">Heure locale</span>
+                        <div id="place-local-time" class="font-mono text-xl font-semibold text-[#F4F4F6]">--:--</div>
+                    </div>
+                </div>
+
+                <!-- Barre de recherche et GPS -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-5 space-y-3.5">
+                    <label for="city-input" class="block text-xs font-medium text-[#9A9AA6]">Rechercher une ville ou un col</label>
+                    
+                    <div class="flex gap-2">
+                        <input 
+                            type="text" 
+                            id="city-input" 
+                            placeholder="Ex : Besançon, Annecy, Col de la Schlucht..." 
+                            autocomplete="off"
+                            class="flex-grow rounded-[10px] bg-[#0B0B0D] text-[#F4F4F6] border border-[#232329] px-3.5 py-2.5 text-sm placeholder:text-[#9A9AA6]/60 focus:outline-none focus:border-[#F4F4F6]/50 transition-colors"
+                        >
+                        <button id="search-btn" type="button" class="rounded-[10px] bg-[#F4F4F6] text-[#0B0B0D] text-xs font-semibold px-4 py-2.5 hover:bg-[#F4F4F6]/90 transition-colors cursor-pointer shrink-0">
+                            Valider
+                        </button>
+                    </div>
+
+                    <!-- Liste de suggestions -->
+                    <ul id="search-results" class="hidden rounded-[10px] border border-[#232329] divide-y divide-[#232329] bg-[#0B0B0D] overflow-hidden">
+                        <!-- Injecté dynamiquement -->
+                    </ul>
+
+                    <div class="pt-1">
+                        <button id="gps-btn" type="button" class="w-full py-2.5 px-4 rounded-[10px] bg-[#1A1A20] border border-[#232329] hover:border-[#34343D] text-xs font-medium text-[#F4F4F6] inline-flex items-center justify-center gap-2 transition-colors cursor-pointer">
+                            <svg class="w-3.5 h-3.5 text-[#9A9AA6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+                            </svg>
+                            <span>Ma position GPS</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Raccourcis rapides -->
+                <div class="rounded-[12px] bg-[#131317] border border-[#232329] p-5">
+                    <span class="block text-xs font-medium text-[#9A9AA6] mb-3">Destinations fréquentes</span>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="selectLocation('Audincourt', 'France', 47.4828, 6.8375)" class="px-3.5 py-2 rounded-[10px] bg-[#0B0B0D] border border-[#232329] hover:border-[#F4F4F6]/40 text-xs font-medium text-[#F4F4F6] transition-colors cursor-pointer">
+                            Audincourt
+                        </button>
+                        <button onclick="selectLocation('Belfort', 'France', 47.6380, 6.8628)" class="px-3.5 py-2 rounded-[10px] bg-[#0B0B0D] border border-[#232329] hover:border-[#F4F4F6]/40 text-xs font-medium text-[#F4F4F6] transition-colors cursor-pointer">
+                            Belfort
+                        </button>
+                        <button onclick="selectLocation('Montbéliard', 'France', 47.5100, 6.7984)" class="px-3.5 py-2 rounded-[10px] bg-[#0B0B0D] border border-[#232329] hover:border-[#F4F4F6]/40 text-xs font-medium text-[#F4F4F6] transition-colors cursor-pointer">
+                            Montbéliard
+                        </button>
+                        <button onclick="selectLocation('Ballon d\'Alsace', 'France', 47.8225, 6.8453)" class="px-3.5 py-2 rounded-[10px] bg-[#0B0B0D] border border-[#232329] hover:border-[#F4F4F6]/40 text-xs font-medium text-[#F4F4F6] transition-colors cursor-pointer">
+                            Ballon d'Alsace
+                        </button>
+                        <button onclick="selectLocation('Gérardmer', 'France', 48.0725, 6.8789)" class="px-3.5 py-2 rounded-[10px] bg-[#0B0B0D] border border-[#232329] hover:border-[#F4F4F6]/40 text-xs font-medium text-[#F4F4F6] transition-colors cursor-pointer">
+                            Gérardmer
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- PIED DE PAGE MINIMALISTE -->
+        <footer class="mt-10 pt-4 border-t border-[#232329] flex items-center justify-between text-[11px] font-mono text-[#9A9AA6]">
+            <span>Journal de Route • Moto</span>
+            <span id="sync-time">Données Open-Meteo</span>
+        </footer>
+
+    </div>
+
+    <script>
+        /**
+         * État global de l'application
+         */
+        const state = {
+            location: {
+                name: 'Audincourt',
+                country: 'France',
+                lat: 47.4828,
+                lon: 6.8375
+            },
+            weatherData: null,
+            activeTab: 'now',       // 'now' | 'hours' | 'place'
+            hourlyDay: 'today'      // 'today' | 'tomorrow'
+        };
+
+        /**
+         * Icônes météo minimalistes SVG (1.6px stroke) selon le code météo WMO
+         */
+        function getWeatherSvgIcon(code, windSpeed = 0) {
+            // Pluie / averses / bruine / orage
+            if ((code >= 51 && code <= 67) || (code >= 80 && code <= 99)) {
+                return `<svg class="w-4 h-4 mx-auto text-[#9A9AA6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/></svg>`;
+            }
+            // Neige
+            if (code >= 71 && code <= 77) {
+                return `<svg class="w-4 h-4 mx-auto text-[#9A9AA6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M8 15h.01"/><path d="M8 19h.01"/><path d="M12 17h.01"/><path d="M12 21h.01"/><path d="M16 15h.01"/><path d="M16 19h.01"/></svg>`;
+            }
+            // Vent soutenu
+            if (windSpeed >= 38) {
+                return `<svg class="w-4 h-4 mx-auto text-[#9A9AA6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>`;
+            }
+            // Nuageux / couvert / brouillard
+            if (code >= 2 && code <= 48) {
+                return `<svg class="w-4 h-4 mx-auto text-[#9A9AA6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+            }
+            // Ciel clair / soleil
+            return `<svg class="w-4 h-4 mx-auto text-[#F4F4F6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
+        }
+
+        /**
+         * Navigation fluide entre les 3 onglets sans aucun clignotement
+         */
+        function switchMainTab(tabName) {
+            if (state.activeTab === tabName) return;
+            const tabs = ['now', 'hours', 'map', 'stats', 'place'];
+            const dir = tabs.indexOf(tabName) > tabs.indexOf(state.activeTab) ? 1 : -1; // glisse selon le sens
+            state.activeTab = tabName;
+
+            tabs.forEach(t => {
+                const btn = document.getElementById(`nav-tab-${t}`);
+                const panel = document.getElementById(`panel-${t}`);
+
+                if (t === tabName) {
+                    btn.className = "tab-on";
+                    panel.classList.remove('hidden', 'panel-transition', 'tab-enter');
+                    panel.style.setProperty('--dx', `${dir * 28}px`);
+                    void panel.offsetWidth; // relance l'animation
+                    panel.classList.add('tab-enter');
+                } else {
+                    btn.className = "";
+                    panel.classList.add('hidden');
+                    panel.classList.remove('tab-enter');
+                }
+            });
+            if (tabName === 'map') onMapTab();
+            if (tabName === 'stats') renderStats();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (navigator.vibrate) navigator.vibrate(8); // léger retour haptique (Android)
+        }
+
+
+        /**
+         * Actualisation douce des données météo avec simple rotation de l'icône
+         */
+        async function refreshWeatherSmooth() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('is-spinning');
+            await fetchWeatherData();
+            setTimeout(() => {
+                icon.classList.remove('is-spinning');
+            }, 400);
+        }
+
+        /**
+         * Évaluation des conditions de roulage pour moto de route
+         */
+        function evaluateMotoSlot({ temp, precip, precipProb, windSpeed, windGusts, weatherCode, visibility }) {
+            const gusts = Math.max(windSpeed || 0, windGusts || 0);
+            const isSevere = weatherCode === 66 || weatherCode === 67 || (weatherCode >= 71 && weatherCode <= 77) || weatherCode >= 95;
+            const isRaining = precip >= 0.5 || (weatherCode >= 51 && weatherCode <= 65) || (weatherCode >= 80 && weatherCode <= 82);
+            const isFog = weatherCode === 45 || weatherCode === 48 || (typeof visibility === 'number' && visibility < 1000);
+
+            // 1. Conditions défavorables -> RESTER AU GARAGE / Non
+            if (isSevere) {
+                return {
+                    verdict: 'RESTER AU GARAGE',
+                    shortStatus: 'Non',
+                    level: 'bad',
+                    reason: 'Conditions critiques (orage, neige ou pluie verglaçante) : adhérence compromise.',
+                    gear: 'Sortie fortement déconseillée aujourd’hui.',
+                    score: 10
+                };
+            }
+            if (temp <= 2) {
+                return {
+                    verdict: 'RESTER AU GARAGE',
+                    shortStatus: 'Non',
+                    level: 'bad',
+                    reason: `Température proche de zéro (${Math.round(temp)}°C) : risque de givre et pneus froids sur l'asphalte.`,
+                    gear: 'Gants chauffants et sous-couches thermiques obligatoires si déplacement vital.',
+                    score: 20
+                };
+            }
+            if (isRaining || precipProb >= 70) {
+                return {
+                    verdict: 'RESTER AU GARAGE',
+                    shortStatus: 'Non',
+                    level: 'bad',
+                    reason: `Chaussée mouillée et précipitations marquées (${precipProb}%), visibilité et grip réduits.`,
+                    gear: 'Combinaison de pluie intégrale, gants étanches et écran Pinlock.',
+                    score: 25
+                };
+            }
+            if (gusts >= 60) {
+                return {
+                    verdict: 'RESTER AU GARAGE',
+                    shortStatus: 'Non',
+                    level: 'bad',
+                    reason: `Rafales violentes atteignant ${Math.round(gusts)} km/h : fortes déstabilisations latérales.`,
+                    gear: 'Évitez les ponts, crêtes et voies rapides exposées.',
+                    score: 25
+                };
+            }
+
+            // 2. Conditions intermédiaires -> PRUDENCE / Moyen
+            if (isFog) {
+                return {
+                    verdict: 'PRUDENCE',
+                    shortStatus: 'Moyen',
+                    level: 'warn',
+                    reason: 'Nappes de brouillard réduisant la visibilité et humidifiant le bitume.',
+                    gear: 'Visière claire propre, feux de croisement et gilet haute visibilité.',
+                    score: 50
+                };
+            }
+            if (precip > 0 || precipProb >= 35) {
+                return {
+                    verdict: 'PRUDENCE',
+                    shortStatus: 'Moyen',
+                    level: 'warn',
+                    reason: `Risque d'averses passagères (${precipProb}%), restez attentif aux zones humides à l'ombre.`,
+                    gear: 'Blouson étanche ou sur-veste de pluie rangée dans le sac.',
+                    score: 55
+                };
+            }
+            if (temp < 10) {
+                return {
+                    verdict: 'PRUDENCE',
+                    shortStatus: 'Moyen',
+                    level: 'warn',
+                    reason: `Air frais (${Math.round(temp)}°C) : laissez le temps aux gommes de monter en température.`,
+                    gear: 'Gants hiver doublés, tour de cou coupe-vent et doublure thermique.',
+                    score: 60
+                };
+            }
+            if (gusts >= 40) {
+                return {
+                    verdict: 'PRUDENCE',
+                    shortStatus: 'Moyen',
+                    level: 'warn',
+                    reason: `Route sèche mais rafales sensibles jusqu'à ${Math.round(gusts)} km/h sur les portions dégagées.`,
+                    gear: 'Blouson bien ajusté aux poignets et bouchons d’oreilles filtrants.',
+                    score: 60
+                };
+            }
+            if (temp > 31) {
+                return {
+                    verdict: 'PRUDENCE',
+                    shortStatus: 'Moyen',
+                    level: 'warn',
+                    reason: `Forte chaleur (${Math.round(temp)}°C) : risque de déshydratation et baisse de vigilance.`,
+                    gear: 'Blouson mesh ventilé, gants d’été homologués et réserve d’eau.',
+                    score: 65
+                };
+            }
+
+            // 3. Conditions optimales -> ROULER / OK
+            const gearAdvice = temp < 16
+                ? 'Tenue mi-saison avec doublure légère, gants cuir et tour de cou.'
+                : 'Blouson ventilé ou cuir standard, gants d’été et écran solaire.';
+
+            return {
+                verdict: 'ROULER',
+                shortStatus: 'OK',
+                level: 'ok',
+                reason: `Asphalte sec, bonne visibilité, ${Math.round(temp)}°C et vent modéré (${Math.round(windSpeed)} km/h).`,
+                gear: gearAdvice,
+                score: 95
+            };
+        }
+
+        /**
+         * Horloge temps réel HH:MM
+         */
+        function updateClock() {
+            const now = new Date();
+            const formatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            document.getElementById('live-clock').textContent = formatted;
+            document.getElementById('place-local-time').textContent = formatted;
+        }
+
+        function showBanner(msg) {
+            const banner = document.getElementById('status-banner');
+            document.getElementById('status-banner-text').textContent = msg;
+            banner.classList.remove('hidden');
+        }
+
+        function hideBanner() {
+            document.getElementById('status-banner').classList.add('hidden');
+        }
+
+        /**
+         * Sélection d'une localisation et mise à jour
+         */
+        function selectLocation(name, country, lat, lon, autoSwitch = true) {
+            state.location = { name, country, lat, lon };
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('city-input').value = '';
+            hideBanner();
+
+            document.getElementById('header-city-label').textContent = name;
+            document.getElementById('current-place-display').textContent = country ? `${name}, ${country}` : name;
+            document.getElementById('current-coords-display').textContent = `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`;
+
+            fetchWeatherData();
+            if (autoSwitch) {
+                switchMainTab('now');
+            }
+        }
+
+        /**
+         * Recherche de ville via Open-Meteo Geocoding
+         */
+        async function searchCities(query) {
+            if (!query || query.trim().length < 2) {
+                showBanner("Veuillez saisir au moins 2 caractères.");
+                return;
+            }
+
+            const list = document.getElementById('search-results');
+            list.innerHTML = `<li class="px-3.5 py-2.5 text-xs text-[#9A9AA6]">Recherche en cours...</li>`;
+            list.classList.remove('hidden');
+
+            try {
+                const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=5&language=fr&format=json`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (!data.results || data.results.length === 0) {
+                    list.innerHTML = `<li class="px-3.5 py-2.5 text-xs text-[#9A9AA6]">Aucun résultat trouvé pour cette recherche.</li>`;
+                    return;
+                }
+
+                list.innerHTML = data.results.map(item => {
+                    const region = item.admin1 ? `, ${item.admin1}` : '';
+                    const country = item.country || '';
+                    const safeName = item.name.replace(/'/g, "\\'");
+                    const safeCountry = country.replace(/'/g, "\\'");
+                    return `
+                        <li>
+                            <button type="button" onclick="selectLocation('${safeName}', '${safeCountry}', ${item.latitude}, ${item.longitude}, true)" class="w-full text-left px-3.5 py-2.5 hover:bg-[#1A1A20] transition-colors cursor-pointer flex items-center justify-between">
+                                <span class="text-sm font-medium text-[#F4F4F6]">${item.name}</span>
+                                <span class="text-xs text-[#9A9AA6]">${region ? item.admin1 + ', ' : ''}${country}</span>
+                            </button>
+                        </li>
+                    `;
+                }).join('');
+            } catch (e) {
+                list.classList.add('hidden');
+                showBanner("Erreur réseau lors de la recherche de ville.");
+            }
+        }
+
+        /**
+         * Géolocalisation GPS du navigateur
+         */
+        function useGPSLocation() {
+            if (!navigator.geolocation) {
+                showBanner("La géolocalisation n'est pas disponible sur ce navigateur.");
+                return;
+            }
+
+            showBanner("Acquisition de la position GPS...");
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    let cityName = "Position actuelle";
+                    let countryName = "";
+
+                    try {
+                        const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=fr`;
+                        const res = await fetch(revUrl);
+                        if (res.ok) {
+                            const geo = await res.json();
+                            cityName = geo.city || geo.locality || "Position actuelle";
+                            countryName = geo.countryName || "France";
+                        }
+                    } catch (e) {}
+
+                    selectLocation(cityName, countryName, lat, lon, true);
+                },
+                () => {
+                    showBanner("Accès GPS refusé ou signal indisponible.");
+                },
+                { timeout: 8000 }
+            );
+        }
+
+        /**
+         * CONSENSUS MULTI-MODÈLES (Open-Meteo)
+         * On interroge plusieurs modèles météo en parallèle et on moyenne leurs valeurs
+         * heure par heure. Les codes météo (WMO) sont fusionnés par vote majoritaire.
+         */
+        const OPENMETEO_API_KEY = ''; // Optionnel : uniquement pour un abonnement Open-Meteo commercial
+        const CONSENSUS_MODELS = ['meteofrance_seamless', 'icon_seamless', 'ecmwf_ifs025', 'gfs_seamless'];
+        const NUMERIC_VARS = ['temperature_2m', 'apparent_temperature', 'precipitation_probability', 'precipitation', 'wind_speed_10m', 'wind_gusts_10m', 'visibility', 'cloud_cover'];
+
+        function mean(values) {
+            const v = values.filter(x => typeof x === 'number' && !Number.isNaN(x));
+            return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+        }
+
+        function voteWeatherCode(codes) {
+            const v = codes.filter(x => typeof x === 'number');
+            if (!v.length) return 0;
+            const counts = {};
+            v.forEach(c => { counts[c] = (counts[c] || 0) + 1; });
+            // Majorité ; en cas d'égalité, on retient le code le plus défavorable
+            return Number(Object.keys(counts).sort((a, b) => counts[b] - counts[a] || b - a)[0]);
+        }
+
+        function buildConsensus(raw) {
+            const h = raw.hourly;
+            const n = h.time.length;
+            const out = { time: h.time, weather_code: [] };
+            NUMERIC_VARS.forEach(v => { out[v] = []; });
+
+            for (let i = 0; i < n; i++) {
+                NUMERIC_VARS.forEach(v => {
+                    const vals = CONSENSUS_MODELS.map(m => h[`${v}_${m}`]?.[i]);
+                    const avg = mean(vals);
+                    out[v].push(avg === null ? null : avg);
+                });
+                out.weather_code.push(voteWeatherCode(CONSENSUS_MODELS.map(m => h[`weather_code_${m}`]?.[i])));
+            }
+            // Arrondis lisibles / valeurs par défaut
+            out.precipitation_probability = out.precipitation_probability.map(x => x === null ? 0 : Math.round(x));
+            out.precipitation = out.precipitation.map(x => x === null ? 0 : x);
+            out.wind_speed_10m = out.wind_speed_10m.map(x => x === null ? 0 : x);
+            out.wind_gusts_10m = out.wind_gusts_10m.map(x => x === null ? 0 : x);
+            return out;
+        }
+
+        async function fetchWeatherData() {
+            const { lat, lon } = state.location;
+            const hourlyVars = [...NUMERIC_VARS, 'weather_code'].join(',');
+            const host = OPENMETEO_API_KEY ? 'customer-api.open-meteo.com' : 'api.open-meteo.com';
+            const keyParam = OPENMETEO_API_KEY ? `&apikey=${encodeURIComponent(OPENMETEO_API_KEY)}` : '';
+            const url = `https://${host}/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${hourlyVars}&models=${CONSENSUS_MODELS.join(',')}&timezone=auto&forecast_days=2${keyParam}`;
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error();
+                const raw = await res.json();
+                const hourly = buildConsensus(raw);
+
+                // « Maintenant » = créneau horaire courant du consensus
+                const nowPrefix = new Date().toLocaleString('sv-SE', { timeZone: raw.timezone }).slice(0, 13).replace(' ', 'T');
+                let idx = hourly.time.findIndex(t => t.startsWith(nowPrefix));
+                if (idx === -1) idx = 0;
+
+                state.weatherData = {
+                    hourly,
+                    current: {
+                        time: hourly.time[idx],
+                        temperature_2m: hourly.temperature_2m[idx],
+                        apparent_temperature: hourly.apparent_temperature[idx] ?? hourly.temperature_2m[idx],
+                        precipitation: hourly.precipitation[idx],
+                        weather_code: hourly.weather_code[idx],
+                        wind_speed_10m: hourly.wind_speed_10m[idx],
+                        wind_gusts_10m: hourly.wind_gusts_10m[idx],
+                        visibility: hourly.visibility[idx]
+                    }
+                };
+
+                lastFetch = Date.now(); saveLocation();
+                renderNowTab();
+                renderDayStrip();
+                renderSky();
+                renderBestWindows();
+                renderHourlyList();
+
+                const now = new Date();
+                document.getElementById('sync-time').textContent = `Consensus ${CONSENSUS_MODELS.length} modèles · ${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}`;
+            } catch (e) {
+                showBanner("Impossible de récupérer les données météo pour le moment.");
+            }
+        }
+
+        function renderDayStrip() {
+            const el = document.getElementById('day-strip');
+            const hr = state.weatherData && state.weatherData.hourly;
+            if (!el || !hr) return;
+            const colors = { ok: '#30D158', warn: '#FF9F0A', bad: '#FF453A' };
+            const nowH = new Date().getHours();
+            el.innerHTML = '';
+            for (let h = 7; h <= 21; h++) {
+                const r = evaluateMotoSlot({ temp: hr.temperature_2m[h], precip: hr.precipitation[h], precipProb: hr.precipitation_probability[h], windSpeed: hr.wind_speed_10m[h], windGusts: hr.wind_gusts_10m[h], weatherCode: hr.weather_code[h], visibility: hr.visibility[h] });
+                const c = document.createElement('div');
+                c.className = 'cell';
+                c.style.background = colors[r.level];
+                c.style.animationDelay = `${(h - 7) * 35}ms`;
+                c.style.opacity = h < nowH ? '.3' : '1';
+                if (h === nowH) c.style.outline = '2px solid #F4F4F6';
+                el.appendChild(c);
+            }
+        }
+
+        function saveLocation() { try { localStorage.setItem('jdr_loc', JSON.stringify(state.location)); } catch (e) {} }
+
+        let lastFetch = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && Date.now() - lastFetch > 10 * 60 * 1000) fetchWeatherData();
+        });
+
+        /**
+         * Ciel animé : reflète l'heure et la météo actuelle
+         */
+        let skyKey = '';
+        function renderSky() {
+            const sky = document.getElementById('sky');
+            if (!sky || !state.weatherData) return;
+            const c = state.weatherData.current;
+            const now = new Date();
+            const h = now.getHours() + now.getMinutes() / 60;
+            const code = c.weather_code;
+            const wind = c.wind_speed_10m || 0;
+            const isNight = h < 6 || h >= 20.5;
+            const kind = code >= 95 ? 'storm' : (code >= 71 && code <= 77) || code === 85 || code === 86 ? 'snow'
+                : (code >= 51 && code <= 67) || (code >= 80 && code <= 82) ? 'rain' : (code === 45 || code === 48) ? 'fog'
+                : code === 3 ? 'cloudy' : code === 2 ? 'partly' : 'clear';
+            const key = `${Math.floor(h * 2)}-${kind}-${Math.round(wind / 10)}`;
+            if (key === skyKey) return;
+            skyKey = key;
+
+            const grad = h < 5 || h >= 21 ? ['#05060f', '#12142a'] : h < 8 ? ['#3b2a4a', '#d9895a'] : h < 18 ? ['#1c3a5e', '#4d86b8'] : ['#4a2a3f', '#d0653f'];
+            const dim = (kind === 'rain' || kind === 'storm' || kind === 'cloudy' || kind === 'fog') ? 'saturate(.35) brightness(.7)' : 'none';
+            let html = `<div class="bg" style="background:linear-gradient(${grad[0]},${grad[1]});filter:${dim}"></div>`;
+
+            const covered = kind === 'storm' || kind === 'rain' || kind === 'cloudy' || kind === 'fog' || kind === 'snow';
+            if (!covered) {
+                if (isNight) {
+                    const t = ((h + 4) % 24) / 9.5;
+                    html += `<div class="orb moon" style="left:${10 + Math.min(t, 1) * 75}%;top:${14 - Math.sin(Math.min(t, 1) * Math.PI) * 8}%"></div>`;
+                    for (let i = 0; i < 30; i++) html += `<div class="star" style="left:${Math.random() * 100}%;top:${Math.random() * 40}%;animation-delay:${Math.random() * 3}s"></div>`;
+                } else {
+                    const t = Math.min(Math.max((h - 6) / 14.5, 0), 1);
+                    html += `<div class="orb sun" style="left:${8 + t * 78}%;top:${20 - Math.sin(t * Math.PI) * 14}%"></div>`;
+                }
+            }
+            const nClouds = { clear: 0, partly: 3, cloudy: 7, rain: 7, storm: 8, snow: 6, fog: 0 }[kind];
+            const speed = Math.max(40, 160 - wind * 3); // plus de vent = nuages plus rapides
+            for (let i = 0; i < nClouds; i++) {
+                const w = 90 + Math.random() * 140;
+                html += `<div class="cloud" style="top:${4 + Math.random() * 28}%;width:${w}px;animation-duration:${speed + Math.random() * 40}s;animation-delay:-${Math.random() * speed}s;opacity:${kind === 'partly' ? .6 : 1}"></div>`;
+            }
+            if (kind === 'rain' || kind === 'storm') {
+                for (let i = 0; i < 45; i++) html += `<div class="drop" style="left:${Math.random() * 100}%;animation-duration:${.7 + Math.random() * .5}s;animation-delay:-${Math.random()}s"></div>`;
+            }
+            if (kind === 'snow') {
+                for (let i = 0; i < 35; i++) html += `<div class="flake" style="left:${Math.random() * 100}%;animation-duration:${5 + Math.random() * 5}s;animation-delay:-${Math.random() * 8}s"></div>`;
+            }
+            if (kind === 'fog') {
+                for (let i = 0; i < 4; i++) html += `<div class="fog" style="top:${8 + i * 14}%;animation-delay:-${i * 3}s"></div>`;
+            }
+            if (kind === 'storm') html += '<div class="flash"></div>';
+            sky.innerHTML = html;
+        }
+
+        /**
+         * ===== TABLEAU DE BORD : GPS, carte, exploration, stats =====
+         */
+        const CELL = 0.02; // ≈ 2 km : une « zone explorée »
+        // --- Clé de la carte ---
+        // Clé CARTO Basemaps (paramètre ?key= ajouté aux tuiles dans initMap)
+        const MAP_API_KEY = 'cb1_5gme_1_a6c37573f47681ad26912b91';
+        const MAP_ATTRIBUTION = '© OpenStreetMap © CARTO';
+        const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+        const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+        const cells = new Set(load('jdr_cells', []));
+        let trips = load('jdr_trips', []);
+        const trk = { active: false, id: null, wake: null, timer: null, last: null, lastT: 0, lastPos: null, dist: 0, max: 0, moving: 0, t0: 0, speed: 0, pts: [] };
+        let mapObj, cellsRect, cellsDots, trackLine, meMarker;
+
+        const hav = (a, b) => { const R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lon - a.lon) * r;
+            const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+        const fmtDur = sec => { sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+            return h ? `${h}h${String(m).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`; };
+        const cellArea = key => { const [i] = key.split(',').map(Number); const d = CELL * 111.32; return d * d * Math.cos((i + .5) * CELL * Math.PI / 180); };
+
+        function initMap() {
+            if (mapObj) return;
+            const el = document.getElementById('map');
+            if (!window.L) { el.innerHTML = '<p class="p-6 text-sm text-[#8E8E93]">Carte indisponible (connexion requise).</p>'; return; }
+            mapObj = L.map('map', { preferCanvas: true, zoomControl: false }).setView([state.location.lat, state.location.lon], 10);
+            // Fonds de carte essayés dans l'ordre : le 1er avec ta clé CARTO, puis une variante d'URL, puis OpenStreetMap (sans clé)
+            const k = encodeURIComponent(MAP_API_KEY);
+            const sources = [
+                ['https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=' + k, MAP_ATTRIBUTION],
+                ['https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=' + k, MAP_ATTRIBUTION],
+                ['https://tile.openstreetmap.org/{z}/{x}/{y}.png', '© OpenStreetMap']
+            ];
+            let srcIdx = 0, errs = 0, baseLayer;
+            const useSource = () => {
+                if (baseLayer) mapObj.removeLayer(baseLayer);
+                errs = 0;
+                baseLayer = L.tileLayer(sources[srcIdx][0], { maxZoom: 18, attribution: sources[srcIdx][1] });
+                baseLayer.on('tileerror', () => { if (++errs >= 4 && srcIdx < sources.length - 1) { srcIdx++; useSource(); } });
+                baseLayer.addTo(mapObj).bringToBack();
+            };
+            useSource();
+            cellsRect = L.layerGroup().addTo(mapObj);
+            cellsDots = L.layerGroup();
+            trackLine = L.polyline(trk.pts, { color: '#FF9F0A', weight: 4 }).addTo(mapObj);
+            const dots = new Set();
+            cells.forEach(k => { drawCell(k); const [i, j] = k.split(',').map(Number); dots.add(`${Math.round(i * CELL)},${Math.round(j * CELL)}`); });
+            dots.forEach(k => { const [la, lo] = k.split(',').map(Number); L.circleMarker([la, lo], { radius: 4, stroke: false, fillColor: '#30D158', fillOpacity: .85, interactive: false }).addTo(cellsDots); });
+            mapObj.on('zoomend', syncLayers);
+            syncLayers();
+        }
+        function syncLayers() {
+            const far = mapObj.getZoom() < 9;
+            far ? (mapObj.removeLayer(cellsRect), cellsDots.addTo(mapObj)) : (mapObj.removeLayer(cellsDots), cellsRect.addTo(mapObj));
+        }
+        function drawCell(k) {
+            const [i, j] = k.split(',').map(Number);
+            L.rectangle([[i * CELL, j * CELL], [(i + 1) * CELL, (j + 1) * CELL]], { stroke: false, fillColor: '#30D158', fillOpacity: .4, interactive: false }).addTo(cellsRect);
+        }
+        function onMapTab() { initMap(); setTimeout(() => mapObj && mapObj.invalidateSize(), 60); updateExploredLine(); }
+        function mapGoWorld() { initMap(); mapObj && mapObj.setView([25, 10], 2); }
+        function mapGoMe() {
+            initMap(); if (!mapObj) return;
+            if (trk.lastPos) return mapObj.setView(trk.lastPos, 15);
+            navigator.geolocation && navigator.geolocation.getCurrentPosition(p => { trk.lastPos = [p.coords.latitude, p.coords.longitude]; mapObj.setView(trk.lastPos, 15); }, () => setGps('Position refusée ou indisponible'), { enableHighAccuracy: true, timeout: 10000 });
+        }
+        function updateExploredLine() {
+            let km2 = 0; cells.forEach(k => km2 += cellArea(k));
+            document.getElementById('explored-line').textContent = `Zones explorées : ${cells.size} · ≈ ${Math.round(km2).toLocaleString('fr-FR')} km²`;
+        }
+        const setGps = t => { document.getElementById('gps-status').textContent = t; };
+
+        async function toggleTracking() {
+            const btn = document.getElementById('trk-btn');
+            if (trk.active) return stopTracking();
+            if (!navigator.geolocation) return setGps('GPS non supporté');
+            Object.assign(trk, { active: true, last: null, lastT: 0, dist: 0, max: 0, moving: 0, t0: Date.now(), speed: 0, pts: [] });
+            if (trackLine) trackLine.setLatLngs([]);
+            trk.id = navigator.geolocation.watchPosition(onPos, e => setGps(e.code === 1 ? 'Autorise la localisation' : 'Signal GPS faible'), { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+            trk.lastFix = Date.now();
+            try { trk.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+            trk.timer = setInterval(tickUI, 1000);
+            btn.textContent = 'Terminer le trajet'; btn.style.background = '#FF453A';
+            setGps('Recherche du signal…');
+        }
+        function stopTracking() {
+            navigator.geolocation.clearWatch(trk.id); clearInterval(trk.timer);
+            try { trk.wake && trk.wake.release(); } catch (e) {}
+            if (trk.dist > 50) { trips.unshift({ t0: trk.t0, t1: Date.now(), dist: trk.dist, max: trk.max, moving: trk.moving }); trips = trips.slice(0, 200); save('jdr_trips', trips); }
+            trk.active = false; trk.speed = 0;
+            const btn = document.getElementById('trk-btn'); btn.textContent = 'Démarrer le trajet'; btn.style.background = '#0A84FF';
+            setGps('GPS à l\'arrêt'); tickUI(); renderStats();
+        }
+        function onPos(pos) {
+            const c = pos.coords, t = pos.timestamp, cur = { lat: c.latitude, lon: c.longitude };
+            if (c.accuracy > 60) return setGps(`Précision faible (${Math.round(c.accuracy)} m)`);
+            setGps(`GPS ±${Math.round(c.accuracy)} m`);
+            let v = c.speed; // m/s fournie par le capteur (effet Doppler : fiable)
+            const dt = trk.lastT ? (t - trk.lastT) / 1000 : 0;
+            trk.lastFix = Date.now();
+            if (trk.last) {
+                const d = hav(trk.last, cur);
+                const dtAcc = (t - trk.lastAccT) / 1000; // temps écoulé depuis le dernier point retenu
+                // Pas de vitesse fournie par le capteur : on la déduit de la distance / temps entre points retenus
+                if (v == null || isNaN(v)) v = dtAcc > 0 && d >= 3 ? d / dtAcc : 0;
+                // Anti-bruit à l'arrêt : un déplacement inférieur à l'incertitude GPS n'est pas compté
+                const still = v < 0.7 && d < Math.max(3, c.accuracy);
+                if (!still && d >= 3 && d / Math.max(dtAcc, .1) < 100) { trk.dist += d; trk.last = cur; trk.lastAccT = t; }
+            } else { trk.last = cur; trk.lastAccT = t; if (v == null || isNaN(v)) v = 0; }
+            if (v > 1 && dt > 0 && dt < 30) trk.moving += dt;
+            trk.lastT = t;
+            trk.speed = v < 0.7 ? 0 : v * 3.6;
+            if (v < 100) trk.max = Math.max(trk.max, trk.speed);
+            trk.lastPos = [cur.lat, cur.lon]; trk.pts.push(trk.lastPos);
+            const k = `${Math.floor(cur.lat / CELL)},${Math.floor(cur.lon / CELL)}`;
+            if (!cells.has(k)) { cells.add(k); save('jdr_cells', [...cells]); if (mapObj) drawCell(k); updateExploredLine(); }
+            if (mapObj) {
+                trackLine.setLatLngs(trk.pts);
+                meMarker ? meMarker.setLatLng(trk.lastPos) : meMarker = L.circleMarker(trk.lastPos, { radius: 8, color: '#fff', weight: 3, fillColor: '#0A84FF', fillOpacity: 1 }).addTo(mapObj);
+                if (trk.pts.length === 1) mapObj.setView(trk.lastPos, 14);
+            }
+            tickUI();
+        }
+        // Le verrou d'écran est libéré quand la page passe en arrière-plan : on le redemande au retour
+        document.addEventListener('visibilitychange', async () => {
+            if (!document.hidden && trk.active) { try { trk.wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+        });
+        function tickUI() {
+            // Plus de position reçue depuis 8 s (tunnel, signal perdu) : on n'affiche pas une vitesse périmée
+            if (trk.active && trk.lastFix && Date.now() - trk.lastFix > 8000) { trk.speed = 0; setGps('Signal GPS perdu…'); }
+            const sp = trk.active ? Math.round(trk.speed) : null;
+            document.getElementById('spd').textContent = sp === null ? '--' : sp;
+            const bar = document.getElementById('spd-bar');
+            bar.style.width = Math.min((sp || 0) / 130, 1) * 100 + '%';
+            bar.style.background = (sp || 0) > 110 ? '#FF453A' : (sp || 0) > 80 ? '#FF9F0A' : '#30D158';
+            document.getElementById('d-dist').textContent = (trk.dist / 1000).toFixed(1);
+            document.getElementById('d-time').textContent = fmtDur(trk.active ? (Date.now() - trk.t0) / 1000 : 0);
+            document.getElementById('d-max').textContent = Math.round(trk.max);
+            if (state.activeTab === 'stats') renderStats();
+        }
+
+        function renderStats() {
+            const el = document.getElementById('stats-body'); if (!el) return;
+            const row = (l, v) => `<div class="flex justify-between py-3 border-b border-[#232329] last:border-0"><span class="text-sm text-[#9A9AA6]">${l}</span><span class="text-sm font-semibold">${v}</span></div>`;
+            const card = (t, r) => `<div><h2 class="text-xs uppercase tracking-wider text-[#9A9AA6] px-2 mb-2">${t}</h2><div class="rounded-[12px] bg-[#131317] border border-[#232329] px-4">${r}</div></div>`;
+            const kmh = (d, s) => s > 0 ? (d / 1000 / (s / 3600)).toFixed(1) + ' km/h' : '--';
+            const total = trk.active ? (Date.now() - trk.t0) / 1000 : 0;
+            const cur = trk.active ? card('Trajet en cours',
+                row('Distance', (trk.dist / 1000).toFixed(2) + ' km') + row('Durée', fmtDur(total)) + row('En mouvement', fmtDur(trk.moving)) +
+                row('Vitesse moyenne (roulage)', kmh(trk.dist, trk.moving)) + row('Vitesse moyenne (globale)', kmh(trk.dist, total)) + row('Vitesse max', Math.round(trk.max) + ' km/h')) : '';
+            const all = trips.concat(trk.active ? [{ dist: trk.dist, max: trk.max, moving: trk.moving, t0: trk.t0, t1: Date.now() }] : []);
+            const D = all.reduce((a, t) => a + t.dist, 0), M = all.reduce((a, t) => a + t.moving, 0), T = all.reduce((a, t) => a + (t.t1 - t.t0) / 1000, 0);
+            let km2 = 0; cells.forEach(k => km2 += cellArea(k));
+            const cum = card('Cumul', row('Trajets', all.length) + row('Distance totale', (D / 1000).toFixed(1) + ' km') + row('Temps en selle', fmtDur(T)) +
+                row('Vitesse moyenne (roulage)', kmh(D, M)) + row('Vitesse moyenne (globale)', kmh(D, T)) + row('Record de vitesse', Math.round(Math.max(0, ...all.map(t => t.max))) + ' km/h') +
+                row('Zones explorées', cells.size) + row('Surface explorée', '≈ ' + Math.round(km2).toLocaleString('fr-FR') + ' km²'));
+            const list = trips.length ? card('Derniers trajets', trips.slice(0, 6).map(t => row(new Date(t.t0).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · ' + fmtDur((t.t1 - t.t0) / 1000), (t.dist / 1000).toFixed(1) + ' km · ' + kmh(t.dist, t.moving))).join('')) : '';
+            el.innerHTML = cur + cum + list;
+        }
+
+        /**
+         * Rendu Onglet 1 : Maintenant
+         */
+        function renderNowTab() {
+            const data = state.weatherData;
+            if (!data || !data.current) return;
+
+            const curr = data.current;
+            const currentHourPrefix = curr.time.slice(0, 13);
+            let idx = data.hourly.time.findIndex(t => t.startsWith(currentHourPrefix));
+            if (idx === -1) idx = 0;
+
+            const precipProb = data.hourly.precipitation_probability[idx] ?? 0;
+
+            const evalNow = evaluateMotoSlot({
+                temp: curr.temperature_2m,
+                precip: curr.precipitation,
+                precipProb: precipProb,
+                windSpeed: curr.wind_speed_10m,
+                windGusts: curr.wind_gusts_10m,
+                weatherCode: curr.weather_code,
+                visibility: curr.visibility
+            });
+
+            // Verdict & Badge discret
+            document.getElementById('now-verdict').textContent = evalNow.verdict;
+            const badge = document.getElementById('now-badge');
+            const dot = document.getElementById('now-badge-dot');
+            const label = document.getElementById('now-badge-label');
+
+            if (evalNow.level === 'ok') {
+                badge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 border border-emerald-500/25 text-emerald-300";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
+                label.textContent = "Favorable";
+            } else if (evalNow.level === 'warn') {
+                badge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-300";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400";
+                label.textContent = "Vigilance";
+            } else {
+                badge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 border border-rose-500/25 text-rose-300";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-rose-400";
+                label.textContent = "Défavorable";
+            }
+
+            document.getElementById('now-reason').textContent = evalNow.reason;
+            document.getElementById('now-temp').textContent = `${Math.round(curr.temperature_2m)}°`;
+            document.getElementById('now-feels').textContent = `Ressenti ${Math.round(curr.apparent_temperature)}°`;
+            document.getElementById('now-wind').textContent = `${Math.round(curr.wind_speed_10m)}`;
+            document.getElementById('now-gusts').textContent = `Raf. ${Math.round(curr.wind_gusts_10m)} km/h`;
+            document.getElementById('now-rain-prob').textContent = `${precipProb}%`;
+            document.getElementById('now-rain-mm').textContent = `${curr.precipitation.toFixed(1)} mm`;
+            document.getElementById('now-gear').textContent = evalNow.gear;
+        }
+
+        /**
+         * Calcul de la meilleure fenêtre de roulage sur une journée (07h - 22h)
+         */
+        function computeDayWindow(dayOffset) {
+            const hourly = state.weatherData.hourly;
+            const start = dayOffset * 24;
+
+            const slots = [];
+            for (let h = 7; h <= 21; h++) {
+                const i = start + h;
+                const temp = hourly.temperature_2m[i];
+                const res = evaluateMotoSlot({
+                    temp: temp,
+                    precip: hourly.precipitation[i],
+                    precipProb: hourly.precipitation_probability[i],
+                    windSpeed: hourly.wind_speed_10m[i],
+                    windGusts: hourly.wind_gusts_10m[i],
+                    weatherCode: hourly.weather_code[i],
+                    visibility: hourly.visibility[i]
+                });
+                slots.push({ hour: h, temp: temp, status: res.shortStatus, level: res.level });
+            }
+
+            const target = slots.some(s => s.status === 'OK') ? 'OK' : (slots.some(s => s.status === 'Moyen') ? 'Moyen' : null);
+
+            if (!target) {
+                return {
+                    range: "Aucun créneau favorable",
+                    meta: "Conditions défavorables toute la journée"
+                };
+            }
+
+            let best = [];
+            let current = [];
+            for (const s of slots) {
+                if (s.status === target) {
+                    current.push(s);
+                    if (current.length > best.length) best = [...current];
+                } else {
+                    current = [];
+                }
+            }
+
+            const startH = String(best[0].hour).padStart(2, '0');
+            const endH = String(best[best.length - 1].hour + 1).padStart(2, '0');
+            const avgTemp = Math.round(best.reduce((acc, item) => acc + item.temp, 0) / best.length);
+            const qual = target === 'OK' ? 'Conditions optimales' : 'Roulage correct';
+
+            return {
+                range: `${startH}h00 – ${endH}h00`,
+                meta: `${avgTemp}°C en moyenne • ${qual}`
+            };
+        }
+
+        /**
+         * Mise à jour des résumés de meilleures heures (Onglets 1 et 2)
+         */
+        function renderBestWindows() {
+            if (!state.weatherData) return;
+
+            const todayWin = computeDayWindow(0);
+            const tomorrowWin = computeDayWindow(1);
+
+            document.getElementById('now-next-window').textContent = `${todayWin.range} (${todayWin.meta})`;
+
+            document.getElementById('best-today-range').textContent = todayWin.range;
+            document.getElementById('best-today-meta').textContent = todayWin.meta;
+
+            document.getElementById('best-tomorrow-range').textContent = tomorrowWin.range;
+            document.getElementById('best-tomorrow-meta').textContent = tomorrowWin.meta;
+        }
+
+        /**
+         * Bascule Aujourd'hui / Demain dans l'onglet Meilleures heures
+         */
+        function switchHourlyDay(day) {
+            if (state.hourlyDay === day) return;
+            state.hourlyDay = day;
+
+            const btnToday = document.getElementById('subtab-today');
+            const btnTomorrow = document.getElementById('subtab-tomorrow');
+
+            if (day === 'today') {
+                btnToday.className = "py-2.5 rounded-[9px] bg-[#1F1F26] text-[#F4F4F6] font-medium transition-colors cursor-pointer";
+                btnTomorrow.className = "py-2.5 rounded-[9px] text-[#9A9AA6] hover:text-[#F4F4F6] transition-colors cursor-pointer";
+            } else {
+                btnTomorrow.className = "py-2.5 rounded-[9px] bg-[#1F1F26] text-[#F4F4F6] font-medium transition-colors cursor-pointer";
+                btnToday.className = "py-2.5 rounded-[9px] text-[#9A9AA6] hover:text-[#F4F4F6] transition-colors cursor-pointer";
+            }
+
+            renderHourlyList();
+        }
+
+        /**
+         * Rendu du tableau heure par heure (07h à 22h)
+         */
+        function renderHourlyList() {
+            const container = document.getElementById('hourly-list');
+            if (!state.weatherData) return;
+
+            const hourly = state.weatherData.hourly;
+            const offset = state.hourlyDay === 'today' ? 0 : 24;
+            const nowHour = new Date().getHours();
+
+            let html = '';
+            for (let h = 7; h <= 22; h++) {
+                const i = offset + h;
+                const temp = Math.round(hourly.temperature_2m[i]);
+                const rainProb = hourly.precipitation_probability[i];
+                const windSpeed = hourly.wind_speed_10m[i];
+                const code = hourly.weather_code[i];
+
+                const evalSlot = evaluateMotoSlot({
+                    temp: hourly.temperature_2m[i],
+                    precip: hourly.precipitation[i],
+                    precipProb: rainProb,
+                    windSpeed: windSpeed,
+                    windGusts: hourly.wind_gusts_10m[i],
+                    weatherCode: code,
+                    visibility: hourly.visibility[i]
+                });
+
+                const isNow = state.hourlyDay === 'today' && h === nowHour;
+                const rowBg = isNow ? 'bg-[#1A1A20]' : 'hover:bg-[#1A1A20]/50';
+
+                let pillHtml = '';
+                if (evalSlot.level === 'ok') {
+                    pillHtml = `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/25 text-emerald-300"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>OK</span>`;
+                } else if (evalSlot.level === 'warn') {
+                    pillHtml = `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 border border-amber-500/25 text-amber-300"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Moyen</span>`;
+                } else {
+                    pillHtml = `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 border border-rose-500/25 text-rose-300"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>Non</span>`;
+                }
+
+                html += `
+                    <div class="grid grid-cols-12 items-center px-4 py-3 text-sm transition-colors ${rowBg}">
+                        <div class="col-span-3 font-mono text-xs sm:text-sm ${isNow ? 'text-[#F4F4F6] font-semibold' : 'text-[#F4F4F6]/90'}">
+                            ${String(h).padStart(2, '0')}h00
+                        </div>
+                        <div class="col-span-2 flex justify-center">
+                            ${getWeatherSvgIcon(code, windSpeed)}
+                        </div>
+                        <div class="col-span-2 text-center font-mono text-xs sm:text-sm text-[#F4F4F6]">
+                            ${temp}°
+                        </div>
+                        <div class="col-span-2 text-center font-mono text-xs text-[#9A9AA6]">
+                            ${rainProb}%
+                        </div>
+                        <div class="col-span-3 text-right">
+                            ${pillHtml}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        /**
+         * Initialisation au chargement
+         */
+        window.onload = function () {
+            try {
+                const saved = JSON.parse(localStorage.getItem('jdr_loc') || 'null');
+                if (saved && saved.lat && saved.lon) {
+                    Object.assign(state.location, saved);
+                    document.getElementById('header-city-label').textContent = saved.name;
+                }
+            } catch (e) {}
+            updateClock();
+            setInterval(() => { updateClock(); renderSky(); }, 60000);
+            updateClock();
+
+            fetchWeatherData();
+
+            const cityInput = document.getElementById('city-input');
+            document.getElementById('search-btn').addEventListener('click', () => searchCities(cityInput.value));
+            cityInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchCities(cityInput.value);
+                }
+            });
+            document.getElementById('gps-btn').addEventListener('click', useGPSLocation);
+        };
+    </script>
+</body>
+</html>
